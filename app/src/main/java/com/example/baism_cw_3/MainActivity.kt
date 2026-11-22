@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -17,7 +18,13 @@ import org.json.JSONObject
 class MainActivity : ComponentActivity() {
 
     private fun buildHttpClient(): OkHttpClient {
+
+        val certificatePinner = CertificatePinner.Builder()
+            .add("rickandmortyapi.com", "sha256/kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=") // Na razie do testów, tutaj będzie normalny
+            .build()
+
         return OkHttpClient.Builder()
+            .certificatePinner(certificatePinner)
             .build()
     }
 
@@ -43,23 +50,28 @@ suspend fun fetchAllCharacters(client: OkHttpClient): List<CharacterItem> = with
         .url("https://rickandmortyapi.com/api/character")
         .build()
 
-    client.newCall(request).execute().use { response ->
-        val body = response.body?.string() ?: throw Exception("Pusta odpowiedź serwera")
-        val results = JSONObject(body).getJSONArray("results")
-        val list = mutableListOf<CharacterItem>()
+    try {
+        client.newCall(request).execute().use { response ->
+            val body = response.body?.string() ?: throw Exception("Pusta odpowiedź serwera")
+            val results = JSONObject(body).getJSONArray("results")
+            val list = mutableListOf<CharacterItem>()
 
-        for (i in 0 until results.length()) {
-            val obj = results.getJSONObject(i)
-            list.add(
-                CharacterItem(
-                    id = obj.getInt("id"),
-                    name = obj.getString("name"),
-                    status = obj.getString("status"),
-                    species = obj.getString("species")
+            for (i in 0 until results.length()) {
+                val obj = results.getJSONObject(i)
+                list.add(
+                    CharacterItem(
+                        id = obj.getInt("id"),
+                        name = obj.getString("name"),
+                        status = obj.getString("status"),
+                        species = obj.getString("species")
+                    )
                 )
-            )
+            }
+            list
         }
-        list
+    } catch (e: Exception) {
+        android.util.Log.e("PINNING_HASH", e.message ?: "Brak szczegółów", e)
+        throw e
     }
 }
 
